@@ -1,0 +1,5 @@
+## Ignore dataset both compressed and decompressed
+
+*.gz
+*.idx3-ubyte
+*.idx1-ubyte
