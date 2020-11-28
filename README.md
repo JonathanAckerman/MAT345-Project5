@@ -16,7 +16,7 @@ git pull --ff-only  // Fast forward to latest if possible (you should have no lo
 ### 3) Make some commits
 ```
 git status                                            // See what has been changed locally
-git add _<filename>_                                  // Track changed file (replace <filename> with the -A flag to track all changed files)
+git add _filename_                                    // Track changed file (replace _filename_ with the -A flag to track all changed files)
 git commit -m "Commit message goes here in quotes"    // Commit changes
 ```
 
