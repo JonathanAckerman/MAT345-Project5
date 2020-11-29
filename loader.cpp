@@ -13,7 +13,7 @@ auto ReverseInt(int i)
     return ((int)c1 << 24) + ((int)c2 << 16) + ((int)c3 << 8) + c4;
 }
 
-std::byte* LoadLabels(const char *filename)
+const std::byte* LoadLabels(const char *filename)
 {
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) throw new std::exception();
@@ -32,7 +32,7 @@ std::byte* LoadLabels(const char *filename)
     return data;
 }
 
-std::byte* LoadImages(const char *filename)
+const std::byte* LoadImages(const char *filename)
 {
     std::ifstream file(filename, std::ios::binary);
     if (!file.is_open()) throw new std::exception();

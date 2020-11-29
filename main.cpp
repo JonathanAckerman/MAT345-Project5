@@ -5,8 +5,8 @@
 
 int main()
 {
-    std::byte *trainingLabels = LoadLabels("train-labels.idx1-ubyte");
-    std::byte *trainingImages = LoadImages("train-images.idx3-ubyte");
+    const std::byte *const trainingLabels = LoadLabels("train-labels.idx1-ubyte");
+    const std::byte *const trainingImages = LoadImages("train-images.idx3-ubyte");
     
     int trainingSize = 60000;
     
