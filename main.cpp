@@ -1,18 +1,24 @@
 #include <iostream>     // cout, endl
-#include <vector>       // vector    
+#include <vector>       // vector
+#include <cstdlib>      // atoi
 
 #include "loader.cpp"
 
-int main()
+using byte = std::byte;
+template <typename T>
+using vector = std::vector<T>;
+
+int main(int argc, char** argv)
 {
-    const std::byte *const trainingLabels = LoadLabels("train-labels.idx1-ubyte");
-    const std::byte *const trainingImages = LoadImages("train-images.idx3-ubyte");
-    
+    int s2 = std::atoi(argv[1]);
     int trainingSize = 60000;
     
+    const byte *const trainingLabels = LoadLabels("train-labels.idx1-ubyte");
+    const byte *const trainingImages = LoadImages("train-images.idx3-ubyte");
+
     // @Note (jonathan): I'm getting decent performance here which is a bit surprising.
     //  My expectation is sizeof(float) * 10 * 60000 = 2,400,000 bytes
-    std::vector<std::vector<float>> Y(trainingSize, std::vector<float>(10, 0.0f));
+    vector<vector<float>> Y(trainingSize, vector<float>(10, 0.0f));
     auto labelIter = trainingLabels;
     for (int i = 0; i < trainingSize; ++i)
     {
@@ -22,7 +28,11 @@ int main()
         ++labelIter;
     }
     
-    //std::byte *testLabels = LoadLabels("t10k-labels.idx1-ubyte");
-    //std::byte *testImages = LoadImages("t10k-images.idx3-ubyte");
+    vector<vector<byte>> inputLayer(28, vector<byte>(28, byte{0}));
+    vector<vector<byte>> hiddenLayer(s2, vector<byte>(s2, byte{0}));
+    vector<float> outputLayer(10, 0.0f);
+    
+    //byte *testLabels = LoadLabels("t10k-labels.idx1-ubyte");
+    //byte *testImages = LoadImages("t10k-images.idx3-ubyte");
     
 }
