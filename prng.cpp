@@ -14,6 +14,6 @@ float prng()
 
     std::mt19937::result_type seed = rd() ^ (s + ms);
     std::mt19937 gen(seed);
-    std::uniform_real_distribution<float> dis(0.0001f, 0.01f);
+    std::uniform_real_distribution<float> dis(-0.01f, 0.01f);
     return dis(gen);
 }
