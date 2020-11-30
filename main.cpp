@@ -31,6 +31,23 @@ struct WeightMatrix
 
 auto Sigmoid = [](float f) { return 1.0f / (1.0f + std::exp(-f)); };
 
+void FeedForward(vector<float> curLayer, vector<float> nextLayer, WeightMatrix Wk, bool hasBias)
+{
+    int size = hasBias ? nextLayer.size() - 1 : nextLayer.size();
+    
+    for (int i = 0; i < size; ++i)
+    {
+        auto &row = Wk.weights[i];
+        int index = hasBias ? i + 1 : i;
+        nextLayer[index] = std::inner_product(row.begin(), row.end(), curLayer.begin(), 0.0f);
+    }
+    
+    auto z = hasBias ?
+        nextLayer | std::views::drop(1);
+        nextLayer | std::views::drop(0):
+    std::ranges::transform(z, z.begin(), Sigmoid);
+}
+
 int main(int argc, char** argv)
 {
     int hiddenSize = std::atoi(argv[1]);
@@ -61,18 +78,10 @@ int main(int argc, char** argv)
         }
         
         vector<float> hiddenLayer(hiddenSize + 1, 1.0f);
-        {
-            for (int i = 0; i < hiddenSize; ++i)
-            {
-                auto &row = W1.weights[i];
-                hiddenLayer[i + 1] = std::inner_product(row.begin(), row.end(), inputLayer.begin(), 0.0f);
-            }
-            
-            auto z = hiddenLayer | std::views::drop(1);
-            std::ranges::transform(z, z.begin(), Sigmoid);
-        }
+        FeedForward(inputLayer, hiddenLayer, W1, true);
         
         vector<float> outputLayer(10, 0.0f);
+        FeedForward(hiddenLayer, outputLayer, W2, false);
     }
     
     //byte *testLabels = LoadLabels("t10k-labels.idx1-ubyte");
