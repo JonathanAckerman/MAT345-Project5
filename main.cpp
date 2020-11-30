@@ -3,6 +3,7 @@
 #include <numeric>      // inner_product
 #include <ranges>       // views
 #include <algorithm>    // transform
+#include <functional>   // minus
 #include <cstdlib>      // atoi
 #include <cmath>        // exp
 
@@ -13,6 +14,13 @@ using byte = std::byte;
 template <typename T>
 using vector = std::vector<T>;
 
+vector<float> operator-(vector<float> lhs, vector<float> rhs)
+{
+    vector<float> result(lhs.size());
+    std::transform(lhs.begin(), lhs.end(), rhs.begin(), result.begin(), std::minus<float>());
+    return result;
+}
+
 struct WeightMatrix
 {
     int numRows;
@@ -22,11 +30,41 @@ struct WeightMatrix
     WeightMatrix(int r, int c) : numRows(r), numCols(c) 
     {
         weights = vector<vector<float>>(r, vector<float>(c));
+    };
+    
+    void Initialize()
+    {
         for (auto &i : weights)
         {
             for (auto &j : i) j = prng();
         }
-    };
+    }
+    
+    WeightMatrix Transpose()
+    {
+        WeightMatrix result(numCols, numRows);
+        for (int row = 0; row < numRows; ++row)
+        {
+            for (int col = 0; col < numCols; ++col)
+            {
+                result.weights[col][row] = weights[row][col];
+            }
+        }
+        return result;
+    }
+    
+    WeightMatrix NoBias()
+    {
+        WeightMatrix result(numRows, numCols - 1);
+        for (int row = 0; row < numRows; ++row)
+        {
+            for (int col = 0; col < numCols - 1; ++col)
+            {
+                result.weights[row][col] = weights[row][col + 1];
+            }
+        }
+        return result; 
+    }
 };
 
 auto Sigmoid = [](float f) { return 1.0f / (1.0f + std::exp(-f)); };
@@ -59,6 +97,8 @@ int main(int argc, char** argv)
     
     WeightMatrix W1(hiddenSize, imageSize + 1);
     WeightMatrix W2(10, hiddenSize + 1);
+    W1.Initialize();
+    W2.Initialize();
     
     // for (int i = 0; i < trainingSize; ++i)
     {
@@ -82,6 +122,9 @@ int main(int argc, char** argv)
         
         vector<float> outputLayer(10, 0.0f);
         FeedForward(hiddenLayer, outputLayer, W2, false);
+        
+        vector<float> error3 = outputLayer - Y;
+        WeightMatrix W2_Prime = W2.NoBias().Transpose();
     }
     
     //byte *testLabels = LoadLabels("t10k-labels.idx1-ubyte");
