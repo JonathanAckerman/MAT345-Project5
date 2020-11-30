@@ -1,5 +1,8 @@
 #include <iostream>     // cout, endl
 #include <vector>       // vector
+#include <numeric>      // inner_product
+#include <ranges>       // views
+#include <algorithm>    // transform
 #include <cstdlib>      // atoi
 #include <cmath>        // exp
 
@@ -10,68 +13,68 @@ using byte = std::byte;
 template <typename T>
 using vector = std::vector<T>;
 
-vector<vector<byte>> operator*(vector<vector<byte>> lhs, vector<vector<byte>> rhs)
+struct WeightMatrix
 {
-    return lhs;
-}
+    int numRows;
+    int numCols;
+    vector<vector<float>> weights;
+    
+    WeightMatrix(int r, int c) : numRows(r), numCols(c) 
+    {
+        weights = vector<vector<float>>(r, vector<float>(c));
+        for (auto &i : weights)
+        {
+            for (auto &j : i) j = prng();
+        }
+    };
+};
 
-vector<float> Sigmoid(const vector<float> &vec)
-{
-    vector<float> output = vec;
-    for (auto& i : output) i = 1 / (1 + std::exp(-i));
-    return output;
-}
+auto Sigmoid = [](float f) { return 1 / (1 + std::exp(-f)); };
 
 int main(int argc, char** argv)
 {
-    int s2 = std::atoi(argv[1]);
+    int hiddenSize = std::atoi(argv[1]);
     int trainingSize = 60000;
     int imageSize = 784;
     
     const byte *const trainingLabels = LoadLabels("train-labels.idx1-ubyte");
     const byte *const trainingImages = LoadImages("train-images.idx3-ubyte");
     
-    vector<vector<float>> Y(trainingSize, vector<float>(10, 0.0f));
+    WeightMatrix W1(hiddenSize, imageSize + 1);
+    WeightMatrix W2(10, hiddenSize + 1);
+    
+    // for (int i = 0; i < trainingSize; ++i)
     {
-        auto labelIter = trainingLabels;
-        for (int i = 0; i < trainingSize; ++i)
+        vector<float> inputLayer(imageSize + 1, 1.0f);
         {
-            int label = (int)*labelIter;
+            for (int pixel = 1; pixel < imageSize + 1; ++pixel)
+            {
+                inputLayer[pixel] = (float)*trainingImages / 255.0f;
+            }
+        }
+        
+        vector<float> Y(10, 0.0f);
+        {
+            int label = (int)*trainingLabels;
             if (label == 0) label = 10;
-            Y[i][label - 1] = 1.0f;
-            ++labelIter;
+            Y[label - 1] = 1.0f;
         }
-    }
-    
-    vector<vector<float>> inputLayer(trainingSize + 1, vector<float>(imageSize, 1.0f));
-    {
-        auto imageIter = trainingImages;
-        for (int image = 0; image < trainingSize; ++image)
+        
+        vector<float> hiddenLayer(hiddenSize + 1, 1.0f);
         {
-            for (int pixel; pixel < imageSize; ++pixel)
+            for (int i = 0; i < hiddenSize; ++i)
             {
-                inputLayer[image + 1][pixel] = (float)*imageIter / 255.0f;
+                auto &row = W1.weights[i];
+                hiddenLayer[i + 1] = std::inner_product(row.begin(), row.end(), inputLayer.begin(), 0.0f);
             }
+            
+            auto z = hiddenLayer | std::views::drop(1);
+            std::ranges::transform(z, z.begin(), Sigmoid);
         }
+        
+        vector<float> outputLayer(10, 0.0f);
     }
-    
-    vector<vector<float>> W1(trainingSize, vector<float>(trainingSize + 1));
-    {
-        for (auto& i : W1)
-        {
-            for (auto& j : i)
-            {
-                j = prng();
-            }
-        }
-    }
-    
-    vector<vector<float>> hiddenLayer(trainingSize + 1, vector<float>(s2));
-    
-    vector<float> outputLayer(10, 0.0f);
     
     //byte *testLabels = LoadLabels("t10k-labels.idx1-ubyte");
     //byte *testImages = LoadImages("t10k-images.idx3-ubyte");
-    
-    
 }
