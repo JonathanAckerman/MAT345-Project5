@@ -4,5 +4,6 @@
 *.idx3-ubyte
 *.idx1-ubyte
 
-## Ignore exe
+## Ignore exe and any stackdumps
 *.exe
+*.stackdump
