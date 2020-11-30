@@ -29,7 +29,7 @@ struct WeightMatrix
     };
 };
 
-auto Sigmoid = [](float f) { return 1 / (1 + std::exp(-f)); };
+auto Sigmoid = [](float f) { return 1.0f / (1.0f + std::exp(-f)); };
 
 int main(int argc, char** argv)
 {
