@@ -68,6 +68,7 @@ struct WeightMatrix
 };
 
 auto Sigmoid = [](float f) { return 1.0f / (1.0f + std::exp(-f)); };
+auto derivativeSigmoid = [](float f) { return Sigmoid(f) * (1.0f - Sigmoid(f)); };
 
 void FeedForward(const vector<float> curLayer, vector<float>& nextLayer, const WeightMatrix Wk, const bool hasBias)
 {
