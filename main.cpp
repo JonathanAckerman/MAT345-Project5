@@ -31,7 +31,7 @@ struct WeightMatrix
 
 auto Sigmoid = [](float f) { return 1.0f / (1.0f + std::exp(-f)); };
 
-void FeedForward(vector<float> curLayer, vector<float> nextLayer, WeightMatrix Wk, bool hasBias)
+void FeedForward(const vector<float> curLayer, vector<float>& nextLayer, const WeightMatrix Wk, const bool hasBias)
 {
     int size = hasBias ? nextLayer.size() - 1 : nextLayer.size();
     
@@ -41,10 +41,10 @@ void FeedForward(vector<float> curLayer, vector<float> nextLayer, WeightMatrix W
         int index = hasBias ? i + 1 : i;
         nextLayer[index] = std::inner_product(row.begin(), row.end(), curLayer.begin(), 0.0f);
     }
-    
+
     auto z = hasBias ?
-        nextLayer | std::views::drop(1);
-        nextLayer | std::views::drop(0):
+        nextLayer | std::views::drop(1):
+        nextLayer | std::views::drop(0);
     std::ranges::transform(z, z.begin(), Sigmoid);
 }
 
