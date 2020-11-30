@@ -3,7 +3,7 @@
 #include <numeric>      // inner_product
 #include <ranges>       // views
 #include <algorithm>    // transform
-#include <functional>   // minus
+#include <functional>   // minus, multiplies
 #include <cstdlib>      // atoi
 #include <cmath>        // exp
 
@@ -17,7 +17,13 @@ using vector = std::vector<T>;
 vector<float> operator-(vector<float> lhs, vector<float> rhs)
 {
     vector<float> result(lhs.size());
-    std::transform(lhs.begin(), lhs.end(), rhs.begin(), result.begin(), std::minus<float>());
+    std::transform(
+        lhs.begin(), 
+        lhs.end(), 
+        rhs.begin(), 
+        result.begin(), 
+        std::minus<float>()
+    );
     return result;
 }
 
@@ -70,21 +76,15 @@ struct WeightMatrix
 auto Sigmoid = [](float f) { return 1.0f / (1.0f + std::exp(-f)); };
 auto derivativeSigmoid = [](float f) { return Sigmoid(f) * (1.0f - Sigmoid(f)); };
 
-void FeedForward(const vector<float> curLayer, vector<float>& nextLayer, const WeightMatrix Wk, const bool hasBias)
+vector<float> FeedForward(const WeightMatrix Wk, const vector<float> curLayer)
 {
-    int size = hasBias ? nextLayer.size() - 1 : nextLayer.size();
-    
-    for (int i = 0; i < size; ++i)
+    vector<float> z(Wk.numRows);
+    for (int i = 0; i < Wk.numRows; ++i)
     {
         auto &row = Wk.weights[i];
-        int index = hasBias ? i + 1 : i;
-        nextLayer[index] = std::inner_product(row.begin(), row.end(), curLayer.begin(), 0.0f);
+        z[i] = std::inner_product(row.begin(), row.end(), curLayer.begin(), 0.0f);
     }
-
-    auto z = hasBias ?
-        nextLayer | std::views::drop(1):
-        nextLayer | std::views::drop(0);
-    std::ranges::transform(z, z.begin(), Sigmoid);
+    return z;
 }
 
 int main(int argc, char** argv)
@@ -118,14 +118,32 @@ int main(int argc, char** argv)
             Y[label - 1] = 1.0f;
         }
         
-        vector<float> hiddenLayer(hiddenSize + 1, 1.0f);
-        FeedForward(inputLayer, hiddenLayer, W1, true);
+        vector<float> z2 = FeedForward(W1, inputLayer);
+        vector<float> a2(z2.size() + 1, 1.0f);
+        {
+            auto view = a2 | std::views::drop(1);
+            std::ranges::transform(view, view.begin(), Sigmoid);
+        }
         
-        vector<float> outputLayer(10, 0.0f);
-        FeedForward(hiddenLayer, outputLayer, W2, false);
-        
-        vector<float> error3 = outputLayer - Y;
-        WeightMatrix W2_Prime = W2.NoBias().Transpose();
+        vector<float> z3 = FeedForward(W2, a2);
+        vector<float> a3 = z3;
+        std::transform(a3.begin(), a3.end(), a3.begin(), Sigmoid);
+
+        // Back Propagation
+        {
+            vector<float> d3 = a3 - Y;
+            WeightMatrix W2_Prime = W2.NoBias().Transpose();
+            vector<float> d2(W2_Prime.numRows);
+            for (auto row : W2_Prime.weights)
+            {
+                d2.push_back(std::inner_product(row.begin(), row.end(), d3.begin(), 0.0f));
+            }
+            vector<float> z2_Prime = z2;
+            {
+                std::transform(z2_Prime.begin(), z2_Prime.end(), z2_Prime.begin(), derivativeSigmoid);
+            }
+            std::transform(d2.begin(), d2.end(), z2_Prime.begin(), d2.begin(), std::multiplies<float>());
+        }
     }
     
     //byte *testLabels = LoadLabels("t10k-labels.idx1-ubyte");
