@@ -101,7 +101,10 @@ int main(int argc, char** argv)
     W1.Initialize();
     W2.Initialize();
     
-    // for (int i = 0; i < trainingSize; ++i)
+    vector<vector<float>> gW1(hiddenSize, vector<float>(imageSize + 1, 0.0f));
+    vector<vector<float>> gW2(10, vector<float>(hiddenSize + 1, 0.0f));
+    
+    for (int image = 0; image < trainingSize; ++image)
     {
         vector<float> inputLayer(imageSize + 1, 1.0f);
         {
@@ -119,7 +122,7 @@ int main(int argc, char** argv)
         }
         
         vector<float> z2 = FeedForward(W1, inputLayer);
-        vector<float> a2(z2.size() + 1, 1.0f);
+        vector<float> a2(hiddenSize + 1, 1.0f);
         {
             auto view = a2 | std::views::drop(1);
             std::ranges::transform(view, view.begin(), Sigmoid);
@@ -133,7 +136,7 @@ int main(int argc, char** argv)
         {
             vector<float> d3 = a3 - Y;
             WeightMatrix W2_Prime = W2.NoBias().Transpose();
-            vector<float> d2(W2_Prime.numRows);
+            vector<float> d2(hiddenSize);
             for (auto row : W2_Prime.weights)
             {
                 d2.push_back(std::inner_product(row.begin(), row.end(), d3.begin(), 0.0f));
@@ -143,6 +146,38 @@ int main(int argc, char** argv)
                 std::transform(z2_Prime.begin(), z2_Prime.end(), z2_Prime.begin(), derivativeSigmoid);
             }
             std::transform(d2.begin(), d2.end(), z2_Prime.begin(), d2.begin(), std::multiplies<float>());
+            
+            for (int i = 0; i < hiddenSize; ++i)
+            {
+                for (int j = 0; j < imageSize + 1; ++j)
+                {
+                    gW1[i][j] += d2[i] * inputLayer[j];
+                }
+            }
+            
+            for (int i = 0; i < 10; ++i)
+            {
+                for (int j = 0; j < hiddenSize + 1; ++j)
+                {
+                    gW2[i][j] += d3[i] * a2[j];
+                }
+            }
+        }
+    }
+    
+    for (auto &i : gW1)
+    {
+        for (auto &j : i)
+        {
+            j /= trainingSize;
+        }
+    }
+    
+    for (auto &i : gW2)
+    {
+        for (auto &j : i)
+        {
+            j /= trainingSize;
         }
     }
     
