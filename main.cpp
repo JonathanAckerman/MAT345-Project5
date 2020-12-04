@@ -37,6 +37,14 @@ struct WeightMatrix
     {
         weights = vector<vector<float>>(r, vector<float>(c));
     };
+
+    // copy c'tor
+    WeightMatrix(WeightMatrix const& origW)
+    {
+      numRows = origW.numRows;
+      numCols = origW.numCols;
+      weights = origW.weights;
+    }
     
     void Initialize()
     {
@@ -87,6 +95,53 @@ vector<float> FeedForward(const WeightMatrix Wk, const vector<float> curLayer)
     return z;
 }
 
+// scalar product of mat
+WeightMatrix* operator*(float lhs, WeightMatrix& rhs)
+{
+  WeightMatrix* result = new WeightMatrix(rhs.numRows, rhs.numCols);
+
+  for (auto& i : result->weights)
+  {
+    for (auto& j : i) j *= lhs;
+  }
+
+  return result;
+}
+
+// weight mat subtraction
+WeightMatrix* operator-(WeightMatrix& lhs, WeightMatrix& rhs)
+{
+  WeightMatrix* result = new WeightMatrix(rhs.numRows, rhs.numCols);
+
+  for (int i = 0; i < result->numRows; ++i)
+    result->weights[i] = lhs.weights[i] - rhs.weights[i];
+
+  return result;
+}
+
+// grad des
+void GradDes(WeightMatrix& W, float n, unsigned numItr)
+{
+  WeightMatrix* oldW = new WeightMatrix(W);
+
+  // W(t+1) = W(t) - n*gradW(t)
+  for (unsigned i = 0; i < numItr; ++i)
+  {
+    // TODO: gradW();
+    WeightMatrix* gradW = /* gradW(); */
+      new WeightMatrix(W.numRows, W.numCols); // placeholder
+    WeightMatrix* step = n * *gradW;
+    WeightMatrix* newW = *oldW - *step;
+
+    // clear
+    delete gradW;
+    delete step;
+    delete oldW;
+
+    oldW = newW;
+  }
+}
+
 int main(int argc, char** argv)
 {
     int hiddenSize = std::atoi(argv[1]);
@@ -100,6 +155,10 @@ int main(int argc, char** argv)
     WeightMatrix W2(10, hiddenSize + 1);
     W1.Initialize();
     W2.Initialize();
+
+    // store ini W for grad des
+    WeightMatrix iniW1(W1);
+    WeightMatrix iniW2(W2);
     
     vector<vector<float>> gW1(hiddenSize, vector<float>(imageSize + 1, 0.0f));
     vector<vector<float>> gW2(10, vector<float>(hiddenSize + 1, 0.0f));
