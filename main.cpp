@@ -122,11 +122,9 @@ int main(int argc, char** argv)
         }
         
         vector<float> z2 = FeedForward(W1, inputLayer);
-        vector<float> a2(hiddenSize + 1, 1.0f);
-        {
-            auto view = a2 | std::views::drop(1);
-            std::ranges::transform(view, view.begin(), Sigmoid);
-        }
+        vector<float> a2 = z2;
+        std::transform(a2.begin() + 1, a2.end(), a2.begin() + 1, Sigmoid);
+        a2.insert(a2.begin(), 1.0f);
         
         vector<float> z3 = FeedForward(W2, a2);
         vector<float> a3 = z3;
