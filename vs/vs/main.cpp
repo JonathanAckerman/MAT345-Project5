@@ -46,6 +46,14 @@ struct WeightMatrix
       weights = origW.weights;
     }
     
+    void Initialize(float zero)
+    {
+        for (auto &i : weights)
+        {
+            for (auto &j : i) j = 0.0f;
+        }
+    }
+    
     void Initialize()
     {
         for (auto &i : weights)
@@ -81,6 +89,30 @@ struct WeightMatrix
     }
 };
 
+// scalar product of mat
+WeightMatrix* operator*(float lhs, WeightMatrix& rhs)
+{
+    WeightMatrix* result = new WeightMatrix(rhs.numRows, rhs.numCols);
+
+    for (auto& i : result->weights)
+    {
+        for (auto& j : i) j *= lhs;
+    }
+
+    return result;
+}
+
+// weight mat subtraction
+WeightMatrix* operator-(WeightMatrix& lhs, WeightMatrix& rhs)
+{
+    WeightMatrix* result = new WeightMatrix(rhs.numRows, rhs.numCols);
+
+    for (int i = 0; i < result->numRows; ++i)
+    result->weights[i] = lhs.weights[i] - rhs.weights[i];
+
+    return result;
+}
+
 auto Sigmoid = [](float f) { return 1.0f / (1.0f + std::exp(-f)); };
 auto derivativeSigmoid = [](float f) { return Sigmoid(f) * (1.0f - Sigmoid(f)); };
 
@@ -95,58 +127,13 @@ vector<float> FeedForward(const WeightMatrix Wk, const vector<float> curLayer)
     return z;
 }
 
-// scalar product of mat
-WeightMatrix* operator*(float lhs, WeightMatrix& rhs)
-{
-  WeightMatrix* result = new WeightMatrix(rhs.numRows, rhs.numCols);
-
-  for (auto& i : result->weights)
-  {
-    for (auto& j : i) j *= lhs;
-  }
-
-  return result;
-}
-
-// weight mat subtraction
-WeightMatrix* operator-(WeightMatrix& lhs, WeightMatrix& rhs)
-{
-  WeightMatrix* result = new WeightMatrix(rhs.numRows, rhs.numCols);
-
-  for (int i = 0; i < result->numRows; ++i)
-    result->weights[i] = lhs.weights[i] - rhs.weights[i];
-
-  return result;
-}
-
-// grad des
-void GradDes(WeightMatrix& W, float n, unsigned numItr)
-{
-  WeightMatrix* oldW = new WeightMatrix(W);
-
-  // W(t+1) = W(t) - n*gradW(t)
-  for (unsigned i = 0; i < numItr; ++i)
-  {
-    // TODO: gradW();
-    WeightMatrix* gradW = /* gradW(); */
-      new WeightMatrix(W.numRows, W.numCols); // placeholder
-    WeightMatrix* step = n * *gradW;
-    WeightMatrix* newW = *oldW - *step;
-
-    // clear
-    delete gradW;
-    delete step;
-    delete oldW;
-
-    oldW = newW;
-  }
-}
-
 int main(int argc, char** argv)
 {
     int hiddenSize = std::atoi(argv[1]);
     int trainingSize = 60000;
     int imageSize = 784;
+    int numItr = 1;
+    float n = 0.1f;
     
     const byte *const trainingLabels = LoadLabels("train-labels.idx1-ubyte");
     const byte *const trainingImages = LoadImages("train-images.idx3-ubyte");
@@ -155,55 +142,108 @@ int main(int argc, char** argv)
     WeightMatrix W2(10, hiddenSize + 1);
     W1.Initialize();
     W2.Initialize();
-
-    // store ini W for grad des
-    WeightMatrix iniW1(W1);
-    WeightMatrix iniW2(W2);
     
-    // for (int i = 0; i < trainingSize; ++i)
+    for (unsigned t = 0; t < numItr; ++t)
     {
-        vector<float> inputLayer(imageSize + 1, 1.0f);
+        WeightMatrix gW1(hiddenSize, imageSize + 1);
+        WeightMatrix gW2(10, hiddenSize + 1);
+        gW1.Initialize(0.0f);
+        gW2.Initialize(0.0f);
+        
+        for (int image = 0; image < trainingSize; ++image)
         {
-            for (int pixel = 1; pixel < imageSize + 1; ++pixel)
+            auto iter = trainingImages;
+            vector<float> inputLayer(imageSize + 1, 1.0f);
             {
-                inputLayer[pixel] = (float)*trainingImages / 255.0f;
+                for (int pixel = 1; pixel < imageSize + 1; ++pixel)
+                {
+                    inputLayer[pixel] = (float)*iter / 255.0f;
+                    iter += sizeof(byte);
+                }
             }
-        }
-        
-        vector<float> Y(10, 0.0f);
-        {
-            int label = (int)*trainingLabels;
-            if (label == 0) label = 10;
-            Y[label - 1] = 1.0f;
-        }
-        
-        vector<float> z2 = FeedForward(W1, inputLayer);
-        vector<float> a2(z2.size() + 1, 1.0f);
-        {
-            auto view = a2 | std::views::drop(1);
-            std::ranges::transform(view, view.begin(), Sigmoid);
-        }
-        
-        vector<float> z3 = FeedForward(W2, a2);
-        vector<float> a3 = z3;
-        std::transform(a3.begin(), a3.end(), a3.begin(), Sigmoid);
+            
+            vector<float> Y(10, 0.0f);
+            {
+                int label = (int)*trainingLabels;
+                if (label == 0) label = 10;
+                Y[label - 1] = 1.0f;
+            }
+            
+            vector<float> z2 = FeedForward(W1, inputLayer);
+            vector<float> a2 = z2;
+            std::transform(a2.begin(), a2.end(), a2.begin(), Sigmoid);
+            a2.insert(a2.begin(), 1.0f);
+            
+            vector<float> z3 = FeedForward(W2, a2);
+            vector<float> a3 = z3;
+            std::transform(a3.begin(), a3.end(), a3.begin(), Sigmoid);
 
-        // Back Propagation
-        {
-            vector<float> d3 = a3 - Y;
-            WeightMatrix W2_Prime = W2.NoBias().Transpose();
-            vector<float> d2(W2_Prime.numRows);
-            for (auto row : W2_Prime.weights)
+            // Back Propagation
             {
-                d2.push_back(std::inner_product(row.begin(), row.end(), d3.begin(), 0.0f));
+                vector<float> d3 = a3 - Y;
+                WeightMatrix W2_Prime = W2.NoBias().Transpose();
+                vector<float> d2;
+                for (auto row : W2_Prime.weights)
+                {
+                    d2.push_back(std::inner_product(row.begin(), row.end(), d3.begin(), 0.0f));
+                }
+                vector<float> z2_Prime = z2;
+                {
+                    std::transform(z2_Prime.begin(), z2_Prime.end(), z2_Prime.begin(), derivativeSigmoid);
+                }
+                std::transform(d2.begin(), d2.end(), z2_Prime.begin(), d2.begin(), std::multiplies<float>());
+                
+                for (int i = 0; i < hiddenSize; ++i)
+                {
+                    for (int j = 0; j < imageSize + 1; ++j)
+                    {
+                        gW1.weights[i][j] += d2[i] * inputLayer[j];
+                    }
+                }
+                
+                for (int i = 0; i < 10; ++i)
+                {
+                    for (int j = 0; j < hiddenSize + 1; ++j)
+                    {
+                        gW2.weights[i][j] += d3[i] * a2[j];
+                    }
+                }
             }
-            vector<float> z2_Prime = z2;
-            {
-                std::transform(z2_Prime.begin(), z2_Prime.end(), z2_Prime.begin(), derivativeSigmoid);
-            }
-            std::transform(d2.begin(), d2.end(), z2_Prime.begin(), d2.begin(), std::multiplies<float>());
         }
+
+        std::cout << "Done with the loop" << std::endl;
+        
+        for (int i = 0; i < gW1.numRows; ++i)
+        {
+            for (int j = 0; j < gW1.numCols; ++j)
+            {
+                gW1.weights[i][j] /= (float)trainingSize;
+            }
+        }
+        
+        for (int i = 0; i < gW2.numRows; ++i)
+        {
+            for (int j = 0; j < gW2.numCols; ++j)
+            {
+                gW2.weights[i][j] /= (float)trainingSize;
+            }
+        }
+        
+        WeightMatrix *temp = n * gW1;
+        WeightMatrix *newW1 = W1 - *temp;
+        W1 = *newW1;
+        delete temp;
+        delete newW1;
+        
+        WeightMatrix *temp2 = n * gW2;
+        WeightMatrix *newW2 = W2 - *temp2;
+        W2 = *newW2;
+        delete temp2;
+        delete newW2;
     }
+
+    std::cout << "DONE! w1[0][0]: " <<  W1.weights[0][0];
+    
     
     //byte *testLabels = LoadLabels("t10k-labels.idx1-ubyte");
     //byte *testImages = LoadImages("t10k-images.idx3-ubyte");
