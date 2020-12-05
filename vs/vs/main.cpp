@@ -137,6 +137,15 @@ int main(int argc, char** argv)
     
     const byte *const trainingLabels = LoadLabels("train-labels.idx1-ubyte");
     const byte *const trainingImages = LoadImages("train-images.idx3-ubyte");
+    vector<vector<float>> tI = vector<vector<float>>(trainingSize, vector<float>(imageSize, 0.0f));
+    for (int i = 0; i < trainingSize; ++i)
+    {
+        for (int j = 0; j < imageSize; ++j)
+        {
+            tI[i][j] = (float)*(trainingImages + i * imageSize + j);
+        }
+    }
+    delete trainingImages;
     
     WeightMatrix W1(hiddenSize, imageSize + 1);
     WeightMatrix W2(10, hiddenSize + 1);
@@ -152,21 +161,17 @@ int main(int argc, char** argv)
         
         for (int image = 0; image < trainingSize; ++image)
         {
-            auto iter = trainingImages;
-            vector<float> inputLayer(imageSize + 1, 1.0f);
+            vector<float> inputLayer(imageSize);
+            for (int pixel = 0; pixel < imageSize + 0; ++pixel)
             {
-                for (int pixel = 1; pixel < imageSize + 1; ++pixel)
-                {
-                    inputLayer[pixel] = (float)*iter / 255.0f;
-                    iter += sizeof(byte);
-                }
+                inputLayer[pixel] = tI[image][pixel] / 255.0f;
             }
+            inputLayer.insert(inputLayer.begin(), 1.0f);
             
             vector<float> Y(10, 0.0f);
             {
-                int label = (int)*trainingLabels;
-                if (label == 0) label = 10;
-                Y[label - 1] = 1.0f;
+                int label = (int)*(trainingLabels + image * sizeof(byte));
+                Y[label] = 1.0f;
             }
             
             vector<float> z2 = FeedForward(W1, inputLayer);

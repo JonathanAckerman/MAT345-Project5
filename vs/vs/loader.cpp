@@ -54,7 +54,8 @@ const std::byte* LoadImages(const char *filename)
     numCols = ReverseInt(numCols);
     if (numRows != 28 || numCols != 28) throw new std::exception();
     
-    std::byte *data = new std::byte[size];
-    file.read((char*)data, size);
+    int dataSize = size * numRows * numCols;
+    std::byte *data = new std::byte[dataSize];
+    file.read((char*)data, dataSize);
     return data;
 }
