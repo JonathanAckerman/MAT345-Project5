@@ -137,15 +137,6 @@ int main(int argc, char** argv)
     
     const byte *const trainingLabels = LoadLabels("train-labels.idx1-ubyte");
     const byte *const trainingImages = LoadImages("train-images.idx3-ubyte");
-    vector<vector<float>> tI = vector<vector<float>>(trainingSize, vector<float>(imageSize, 0.0f));
-    for (int i = 0; i < trainingSize; ++i)
-    {
-        for (int j = 0; j < imageSize; ++j)
-        {
-            tI[i][j] = (float)*(trainingImages + i * imageSize + j);
-        }
-    }
-    delete trainingImages;
     
     WeightMatrix W1(hiddenSize, imageSize + 1);
     WeightMatrix W2(10, hiddenSize + 1);
@@ -159,12 +150,14 @@ int main(int argc, char** argv)
         gW1.Initialize(0.0f);
         gW2.Initialize(0.0f);
         
+        auto dataIter = trainingImages;
         for (int image = 0; image < trainingSize; ++image)
         {
             vector<float> inputLayer(imageSize);
             for (int pixel = 0; pixel < imageSize + 0; ++pixel)
             {
-                inputLayer[pixel] = tI[image][pixel] / 255.0f;
+                inputLayer[pixel] = (float)*dataIter / 255.0f;
+                ++dataIter;
             }
             inputLayer.insert(inputLayer.begin(), 1.0f);
             
