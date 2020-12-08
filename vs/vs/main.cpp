@@ -1,11 +1,11 @@
 #include <iostream>     // cout, endl
 #include <vector>       // vector
 #include <numeric>      // inner_product
-#include <ranges>       // views
 #include <algorithm>    // transform
 #include <functional>   // minus, multiplies
 #include <cstdlib>      // atoi
-#include <cmath>        // exp
+#include <cmath>        // exp, log
+#include <utility>      // tuple
 
 #include "loader.cpp"
 #include "prng.cpp"
@@ -87,98 +87,130 @@ struct WeightMatrix
         }
         return result; 
     }
-};
 
-// scalar product of mat
-WeightMatrix* operator*(float lhs, WeightMatrix& rhs)
-{
-    WeightMatrix* result = new WeightMatrix(rhs.numRows, rhs.numCols);
-
-    for (auto& i : result->weights)
+    WeightMatrix& operator*=(const float f)
     {
-        for (auto& j : i) j *= lhs;
+        for (auto &i : weights)
+        {
+            for (auto &j : i) j *= f;
+        }
+        return *this;
     }
 
-    return result;
-}
+    WeightMatrix& operator-=(WeightMatrix& rhs)
+    {
+        if (numRows != rhs.numRows || numCols != rhs.numCols)
+            throw new std::exception();
 
-// weight mat subtraction
-WeightMatrix* operator-(WeightMatrix& lhs, WeightMatrix& rhs)
-{
-    WeightMatrix* result = new WeightMatrix(rhs.numRows, rhs.numCols);
+        for (int i = 0; i < numRows; ++i)
+        {
+            for (int j = 0; j < numCols; ++j)
+            {
+                weights[i][j] -= rhs.weights[i][j];
+            }
+        }
 
-    for (int i = 0; i < result->numRows; ++i)
-    result->weights[i] = lhs.weights[i] - rhs.weights[i];
+        return *this;
+    }
+};
 
-    return result;
-}
 
 auto Sigmoid = [](float f) { return 1.0f / (1.0f + std::exp(-f)); };
 auto derivativeSigmoid = [](float f) { return Sigmoid(f) * (1.0f - Sigmoid(f)); };
 
 vector<float> FeedForward(const WeightMatrix Wk, const vector<float> curLayer)
 {
-    vector<float> z(Wk.numRows);
+    vector<float> z;
     for (int i = 0; i < Wk.numRows; ++i)
     {
-        auto &row = Wk.weights[i];
-        z[i] = std::inner_product(row.begin(), row.end(), curLayer.begin(), 0.0f);
+        auto& row = Wk.weights[i];
+        z.push_back(std::inner_product(row.begin(), row.end(), curLayer.begin(), 0.0f));
     }
     return z;
+}
+
+float Cost(const vector<float> predicted, const vector<float> expected)
+{
+    vector<float> logPred = predicted;
+    std::transform(predicted.begin(), predicted.end(), logPred.begin(), [](float f) { return std::log(f); });
+    float lhs = std::inner_product(expected.begin(), expected.end(), logPred.begin(), 0.0f);
+
+    vector<float> oneVector = vector<float>(10, 1.0f);
+    vector<float> rhs1 = oneVector - expected;
+    vector<float> rhs2 = oneVector - predicted;
+    std::transform(rhs2.begin(), rhs2.end(), rhs2.begin(), [](float f) { return std::log(f); });
+    float rhs = std::inner_product(rhs1.begin(), rhs1.end(), rhs2.begin(), 0.0f);
+
+    return lhs + rhs;
 }
 
 int main(int argc, char** argv)
 {
     int hiddenSize = std::atoi(argv[1]);
     int trainingSize = 60000;
+    int testingSize = 10000;
     int imageSize = 784;
     int numItr = 1;
-    float n = 0.1f;
+    float n = 0.001f;
+
+    //auto startTraining = std::chrono::high_resolution_clock::now();
     
-    const byte *const trainingLabels = LoadLabels("train-labels.idx1-ubyte");
-    const byte *const trainingImages = LoadImages("train-images.idx3-ubyte");
+    vector<float> trainingImages;
+    vector<vector<float>> trainingLabels;
+    {
+        const byte* const trainingLabelBytes = LoadLabels("train-labels.idx1-ubyte");
+        const byte* const trainingImageBytes = LoadImages("train-images.idx3-ubyte");
+
+        for (int i = 0; i < trainingSize * imageSize; ++i)
+        {
+            float f = (float)*(trainingImageBytes + i) / 255.f;
+            trainingImages.push_back(f);
+        }
+        for (int i = 0; i < trainingSize; ++i)
+        {
+            int label = (int)*(trainingLabelBytes + i);
+            vector<float> v(10, 0.0f);
+            v[label] = 1.0f;
+            trainingLabels.push_back(v);
+        }
+
+        delete trainingImageBytes;
+        delete trainingLabelBytes;
+    }
     
     WeightMatrix W1(hiddenSize, imageSize + 1);
     WeightMatrix W2(10, hiddenSize + 1);
     W1.Initialize();
     W2.Initialize();
-    
+
+    auto pixelIter = trainingImages.begin();
     for (unsigned t = 0; t < numItr; ++t)
     {
         WeightMatrix gW1(hiddenSize, imageSize + 1);
         WeightMatrix gW2(10, hiddenSize + 1);
         gW1.Initialize(0.0f);
         gW2.Initialize(0.0f);
-        
-        auto dataIter = trainingImages;
+
         for (int image = 0; image < trainingSize; ++image)
         {
-            vector<float> inputLayer(imageSize);
-            for (int pixel = 0; pixel < imageSize + 0; ++pixel)
-            {
-                inputLayer[pixel] = (float)*dataIter / 255.0f;
-                ++dataIter;
-            }
+            vector<float> inputLayer(pixelIter, pixelIter + imageSize);
             inputLayer.insert(inputLayer.begin(), 1.0f);
-            
-            vector<float> Y(10, 0.0f);
-            {
-                int label = (int)*(trainingLabels + image * sizeof(byte));
-                Y[label] = 1.0f;
-            }
-            
+
             vector<float> z2 = FeedForward(W1, inputLayer);
             vector<float> a2 = z2;
             std::transform(a2.begin(), a2.end(), a2.begin(), Sigmoid);
             a2.insert(a2.begin(), 1.0f);
-            
+
             vector<float> z3 = FeedForward(W2, a2);
             vector<float> a3 = z3;
             std::transform(a3.begin(), a3.end(), a3.begin(), Sigmoid);
 
+            //float c = Cost(a3, trainingLabels[image]);
+            //std::cout << "t: " << t << " image: "<< image << ", Cost(): " << c << " n: " << n << std::endl;
+            
             // Back Propagation
             {
-                vector<float> d3 = a3 - Y;
+                vector<float> d3 = a3 - trainingLabels[image];
                 WeightMatrix W2_Prime = W2.NoBias().Transpose();
                 vector<float> d2;
                 for (auto row : W2_Prime.weights)
@@ -209,8 +241,6 @@ int main(int argc, char** argv)
             }
         }
 
-        std::cout << "Done with the loop" << std::endl;
-        
         for (int i = 0; i < gW1.numRows; ++i)
         {
             for (int j = 0; j < gW1.numCols; ++j)
@@ -226,23 +256,96 @@ int main(int argc, char** argv)
                 gW2.weights[i][j] /= (float)trainingSize;
             }
         }
-        
-        WeightMatrix *temp = n * gW1;
-        WeightMatrix *newW1 = W1 - *temp;
-        W1 = *newW1;
-        delete temp;
-        delete newW1;
-        
-        WeightMatrix *temp2 = n * gW2;
-        WeightMatrix *newW2 = W2 - *temp2;
-        W2 = *newW2;
-        delete temp2;
-        delete newW2;
+
+        gW1 *= n;
+        gW2 *= n;
+        W1 -= gW1;
+        W2 -= gW2;
+
+        std::cout << ".";
     }
 
-    std::cout << "DONE! w1[0][0]: " <<  W1.weights[0][0];
+    //auto endTraining = std::chrono::high_resolution_clock::now();
+
+    const byte* const testingLabels = LoadLabels("t10k-labels.idx1-ubyte");
+    const byte* const testingImages = LoadImages("t10k-images.idx3-ubyte");
+
+    //auto startTesting = std::chrono::high_resolution_clock::now();
+
+    vector<std::tuple<int, int, float>> testPredictions;
+    auto dataIter = testingImages;
+    for (int image = 0; image < testingSize; ++image)
+    {
+        vector<float> inputLayer(imageSize);
+        for (int pixel = 0; pixel < imageSize + 0; ++pixel)
+        {
+            inputLayer[pixel] = (float)*dataIter / 255.0f;
+            ++dataIter;
+        }
+        inputLayer.insert(inputLayer.begin(), 1.0f);
+
+        vector<float> Y(10, 0.0f);
+        int label = (int)*(testingLabels + image * sizeof(byte));
+        Y[label] = 1.0f;
+
+        vector<float> z2 = FeedForward(W1, inputLayer);
+        vector<float> a2 = z2;
+        std::transform(a2.begin(), a2.end(), a2.begin(), Sigmoid);
+        a2.insert(a2.begin(), 1.0f);
+
+        vector<float> z3 = FeedForward(W2, a2);
+        vector<float> a3 = z3;
+        std::transform(a3.begin(), a3.end(), a3.begin(), Sigmoid);
+
+        auto maxElem = std::max_element(a3.begin(), a3.end());
+        int predLabel = std::distance(a3.begin(), maxElem);
+        testPredictions.push_back(std::tuple(predLabel, label, *maxElem));
+    }
+
+    //auto endTesting = std::chrono::high_resolution_clock::now();
+
+    //auto trainDur = std::chrono::duration_cast<std::chrono::seconds>(endTraining - startTraining);
+    //auto testDur = std::chrono::duration_cast<std::chrono::seconds>(endTesting - startTesting);
+
+    //std::cout << "trainDur: " << trainDur.count() << std::endl;
+    //std::cout << "testDur: " << testDur.count() << std::endl;
     
+    auto activated = [](std::tuple<int, int, float> p) { return std::get<2>(p) > 0.5f; };
+    std::cout << "Count >0.5: " << std::count_if(testPredictions.begin(), testPredictions.end(), activated);
     
-    //byte *testLabels = LoadLabels("t10k-labels.idx1-ubyte");
-    //byte *testImages = LoadImages("t10k-images.idx3-ubyte");
+    auto matched = [](std::tuple<int, int, float> p) { return std::get<0>(p) == std::get<1>(p); };
+    int accurate = 0;
+    for (int i = 0; i < testingSize; ++i)
+    {
+        if (activated(testPredictions[i]) && matched(testPredictions[i]))
+        {
+            ++accurate;
+        }
+    }
+    std::cout << " Accuracy: " << accurate << std::endl;
+    std::cout << std::endl;
+
+    std::ofstream w1File;
+    w1File.open("W1.csv");
+    for (auto i : W1.weights)
+    {
+        for (auto j : i)
+        {
+            w1File << j << ", ";
+        }
+        w1File << std::endl;
+    }
+    w1File.close();
+
+    std::ofstream w2File;
+    w2File.open("W2.csv");
+    for (auto i : W2.weights)
+    {
+        for (auto j : i)
+        {
+            w2File << j << ", ";
+        }
+        w2File << std::endl;
+    }
+    w2File.close();
 }
